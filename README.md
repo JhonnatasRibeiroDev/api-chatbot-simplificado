@@ -20,7 +20,7 @@ A aplicação permite que múltiplos usuários conversem simultaneamente com um 
 - LLM API
 - Docker
 - AWS EC2
-- React
+- Next.js
 
 ## Endpoints
 
