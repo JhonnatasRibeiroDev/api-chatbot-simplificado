@@ -1,46 +1,54 @@
-# Chatbot Multiusuário com LLM
+# Backend — Chatbot Multiusuário com LLM
 
-Este projeto é um protótipo acadêmico desenvolvido para a disciplina de Tópicos em Computação Aplicada.
+Backend do projeto **Chatbot Multiusuário com LLM**, desenvolvido para permitir que múltiplos usuários interajam simultaneamente com um chatbot, mantendo o histórico de conversa isolado por sessão.
 
-A aplicação permite que múltiplos usuários conversem simultaneamente com um chatbot baseado em LLM, mantendo o histórico de conversa isolado por sessão.
+O sistema gera um `session_id` único para cada usuário conectado, utiliza esse identificador para controlar o histórico individual da conversa e envia as mensagens para um modelo LLM responsável por gerar as respostas.
 
-## Funcionalidades
+---
 
-- Criação de sessão com ID único
-- Chat multiusuário
-- Histórico isolado por sessão
-- Integração com modelo LLM
-- Endpoint público hospedado em AWS EC2
-- Documentação de uso da API
+## Objetivo do Backend
 
-## Tecnologias
+O backend tem como objetivo fornecer uma API capaz de:
 
-- FastAPI
+- Criar sessões únicas para usuários diferentes;
+- Manter o histórico de conversa separado por sessão;
+- Receber perguntas dos usuários;
+- Enviar o contexto da conversa para um modelo LLM;
+- Retornar respostas geradas pelo chatbot;
+- Disponibilizar endpoints públicos para uso pelo frontend ou por ferramentas como `curl`, Postman e Insomnia.
+
+---
+
+## Tecnologias Utilizadas
+
 - Python
-- LLM API
+- FastAPI
+- Uvicorn
+- UUID
+- API de LLM, como Gemini, OpenAI ou outra escolhida pelo grupo
 - Docker
-- AWS EC2
-- Next.js
+- Docker Compose
 
-## Endpoints
+---
 
-### Criar sessão
+## Estrutura Sugerida do Backend
 
-POST /api/sessions
-
-### Enviar mensagem
-
-POST /api/chat
-
-### Consultar histórico
-
-GET /api/sessions/{session_id}/history
-
-### Health check
-
-GET /health
-
-## Como rodar localmente
-
-```bash
-docker compose up --build
+```txt
+backend/
+├── app/
+│   ├── main.py
+│   ├── routes/
+│   │   ├── chat.py
+│   │   └── sessions.py
+│   ├── services/
+│   │   ├── llm_service.py
+│   │   └── session_service.py
+│   ├── schemas/
+│   │   ├── chat_schema.py
+│   │   └── session_schema.py
+│   └── core/
+│       └── config.py
+├── requirements.txt
+├── Dockerfile
+├── .env.example
+└── README.md
