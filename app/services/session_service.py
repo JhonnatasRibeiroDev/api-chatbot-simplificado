@@ -16,6 +16,29 @@ def create_session() -> str:
 
     return session_id
 
+def session_exists(session_id: str) -> bool:
+    return session_id in sessions
+
+def add_message_to_history(session_id:str,role: str,content:str)-> None:
+    if not session_exists(session_id):
+        raise ValueError("Sessão não encontrada")
+    
+    sessions[session_id]["messages"].append({
+           "role": role,
+           "content": content
+        } )
+
+def get_history_by_session(session_id: str) -> list:
+    if not session_exists(session_id):
+        raise ValueError("Sessão não encontrada")
+
+    return sessions[session_id]["messages"]
+
+
+
+
+
+
 '''
 O ID identifica um acesso, não uma pessoa.
 sessions = {
