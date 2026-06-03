@@ -19,3 +19,14 @@ app.add_middleware(
     allow_headers=["*"],
     
 )
+
+#NA pratica isso significa se alguem acessar /health responda OK API FUNCIONANDO 
+#endpoint de teste
+@app.get("/health")  #crio a rota da api
+def health_check():
+    return {
+        "status":"ok",
+        "message":"Api funcionando corretamente"
+    }
+
+
