@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware 
+from app.routes.sessions import router as sessions_router
 
 app = FastAPI(
     title="API Chatbot Simplificado",
@@ -20,6 +21,10 @@ app.add_middleware(
     
 )
 
+#Registros as rotas de sessão na aplicação principal
+app.include_router(sessions_router)
+
+
 #NA pratica isso significa se alguem acessar /health responda OK API FUNCIONANDO 
 #endpoint de teste
 @app.get("/health")  #crio a rota da api
@@ -28,5 +33,6 @@ def health_check():
         "status":"ok",
         "message":"Api funcionando corretamente"
     }
+
 
 
