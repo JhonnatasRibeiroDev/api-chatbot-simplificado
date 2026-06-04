@@ -13,6 +13,7 @@ O projeto tem como objetivo servir como uma API backend para um chatbot, separan
 - Uvicorn
 - Pydantic
 - python-dotenv
+- Google GenAI SDK
 
 As dependencias do projeto estao listadas em `requirements.txt`.
 
@@ -77,7 +78,19 @@ source .venv/bin/activate #iniciar o ambiente virtual
 pip install -r requirements.txt  #dependecias dos projeto
 ```
 
-### 3. Iniciar a API
+### 3. Configurar variaveis de ambiente
+
+Crie um arquivo `.env` local com base no `.env.example`:
+
+```env
+LLM_PROVIDER=gemini
+LLM_MODEL=gemini-2.5-flash
+LLM_API_KEY=sua_chave_real
+```
+
+O arquivo `.env` contem segredo real e nao deve ser enviado para o Git.
+
+### 4. Iniciar a API
 
 ```bash
 uvicorn app.main:app --reload
@@ -137,6 +150,38 @@ Exemplo com `curl`:
 curl -X POST http://127.0.0.1:8000/api/sessions
 ```
 
+### Enviar mensagem ao chat
+
+Envia uma mensagem para uma sessao existente. O backend salva a mensagem do usuario, envia a mensagem e o historico da sessao ao LLM configurado e salva a resposta do assistente.
+
+```http
+POST /api/chat
+```
+
+Payload:
+
+```json
+{
+  "session_id": "uuid-gerado",
+  "message": "Ola, chatbot"
+}
+```
+
+Resposta esperada:
+
+```json
+{
+  "session_id": "uuid-gerado",
+  "response": "resposta gerada pelo modelo"
+}
+```
+
+Se a API do LLM falhar ou a chave nao estiver configurada, a resposta sera:
+
+```text
+Não consegui gerar uma resposta agora. Tente novamente em instantes.
+```
+
 ## Como as sessoes funcionam
 
 As sessoes sao armazenadas em memoria no dicionario `sessions`, definido em `app/services/session_service.py`.
@@ -163,17 +208,16 @@ Implementado:
 - Endpoint `POST /api/sessions`.
 - Schema de resposta para sessao.
 - Service de criacao de sessao em memoria.
+- Endpoint `POST /api/chat`.
+- Integracao do chat com servico LLM.
+- Configuracoes de LLM via variaveis de ambiente.
+- Tratamento amigavel para falhas da API do LLM.
 
 Ainda nao implementado:
 
-- Rotas de chat.
-- Schemas de requisicao e resposta para mensagens.
-- Integracao com LLM.
 - Pipeline RAG.
 - Persistencia em banco de dados.
-- Configuracoes via `.env`.
 - Dockerfile e Docker Compose funcionais.
-- Testes automatizados.
 
 ## Observacoes importantes
 

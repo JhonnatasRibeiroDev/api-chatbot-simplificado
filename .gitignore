@@ -3,4 +3,11 @@ venv/
 __pycache__/
 *.pyc
 .env
+.env.*
+!.env.example
+*.pem
+*.key
+*credentials*.json
+*service-account*.json
 fluxoprojeto.md
+fluxoprojeto2.md

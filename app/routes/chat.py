@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException, status
 
 from app.schemas.chat_schema import ChatRequest, ChatResponse
-from app.services.llm_service import generate_chatbot_response
-from app.services.session_service import add_message_to_history
+from app.services.llm_service import generate_answer
+from app.services.session_service import add_message_to_history, get_history_by_session
 
 router = APIRouter(
     prefix="/api/chat",
@@ -26,7 +26,8 @@ def send_message(request: ChatRequest):
             content=message
         )
 
-        chatbot_response = generate_chatbot_response(message)
+        history = get_history_by_session(request.session_id)
+        chatbot_response = generate_answer(message=message, history=history)
 
         add_message_to_history(
             session_id=request.session_id,
