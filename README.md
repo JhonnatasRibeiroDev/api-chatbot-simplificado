@@ -90,6 +90,52 @@ LLM_API_KEY=sua_chave_real
 
 O arquivo `.env` contem segredo real e nao deve ser enviado para o Git.
 
+## Como mudar o modelo LLM
+
+O modelo padrao do projeto e Gemini:
+
+```env
+LLM_PROVIDER=gemini
+LLM_MODEL=gemini-2.5-flash
+LLM_API_KEY=sua_chave_real
+```
+
+Para trocar apenas o modelo dentro do Gemini, altere `LLM_MODEL` e reinicie a API:
+
+```env
+LLM_PROVIDER=gemini
+LLM_MODEL=gemini-2.5-pro
+LLM_API_KEY=sua_chave_real
+```
+
+No estado atual, o backend tem integracao real apenas com Gemini. Trocar `LLM_PROVIDER` para `openai`, `claude`, `ollama` ou outro valor ainda exige implementar um provider/adaptador no servico de LLM.
+
+Exemplo futuro para OpenAI:
+
+```env
+LLM_PROVIDER=openai
+LLM_MODEL=gpt-4.1-mini
+LLM_API_KEY=sua_chave_openai
+```
+
+Exemplo futuro para modelo local via Ollama:
+
+```env
+LLM_PROVIDER=ollama
+LLM_MODEL=llama3.1
+LLM_API_KEY=
+LLM_BASE_URL=http://localhost:11434
+```
+
+Exemplo futuro para LM Studio ou outro servidor compativel com OpenAI:
+
+```env
+LLM_PROVIDER=openai_compatible
+LLM_MODEL=nome-do-modelo-local
+LLM_API_KEY=local
+LLM_BASE_URL=http://localhost:1234/v1
+```
+
 ### 4. Iniciar a API
 
 ```bash

@@ -26,7 +26,13 @@ O arquivo `.env` nao deve ser enviado para o Git, porque contem segredo real.
 
 ## Como trocar o modelo futuramente
 
-Para trocar apenas o modelo Gemini:
+O provider padrao do projeto e Gemini com o modelo `gemini-2.5-flash`.
+
+Hoje o codigo possui integracao real apenas com Gemini. Por isso, trocar entre modelos Gemini exige mudar somente variaveis no `.env`. Trocar para OpenAI, Claude, Ollama ou outro provider exige adicionar um provider/adaptador no codigo antes.
+
+### Trocar apenas o modelo Gemini
+
+Altere somente `LLM_MODEL` no `.env`:
 
 ```env
 LLM_PROVIDER=gemini
@@ -34,13 +40,51 @@ LLM_MODEL=outro-modelo-gemini
 LLM_API_KEY=sua_chave_real
 ```
 
-Para trocar de provider, altere o provider, o modelo e a chave:
+Exemplo:
+
+```env
+LLM_PROVIDER=gemini
+LLM_MODEL=gemini-2.5-pro
+LLM_API_KEY=sua_chave_real
+```
+
+Depois reinicie a API para carregar a nova configuracao.
+
+### Trocar de provider externo
+
+Para trocar para outro provider, como OpenAI ou Claude, a configuracao futura seria parecida com:
 
 ```env
 LLM_PROVIDER=openai
 LLM_MODEL=gpt-4.1-mini
 LLM_API_KEY=sua_chave_openai
 ```
+
+Mas, no estado atual do projeto, essa troca ainda retornara a mensagem amigavel de falha porque o `llm_service.py` suporta apenas Gemini.
+
+### Testar modelos locais no futuro
+
+Modelos locais podem ser integrados futuramente com um provider proprio, por exemplo `ollama` ou `openai_compatible`.
+
+Exemplo futuro com Ollama:
+
+```env
+LLM_PROVIDER=ollama
+LLM_MODEL=llama3.1
+LLM_API_KEY=
+LLM_BASE_URL=http://localhost:11434
+```
+
+Exemplo futuro com LM Studio ou outro servidor compativel com OpenAI:
+
+```env
+LLM_PROVIDER=openai_compatible
+LLM_MODEL=nome-do-modelo-local
+LLM_API_KEY=local
+LLM_BASE_URL=http://localhost:1234/v1
+```
+
+Para esse tipo de troca ficar desacoplada, o proximo passo arquitetural seria separar `llm_service.py` em providers/adapters, mantendo `generate_answer` como ponto unico de entrada.
 
 A aplicacao le essas configuracoes em `app/core/config.py`.
 
