@@ -60,8 +60,8 @@ No Windows:
 Recomendase ter o wsl/unbutu instalado
 ```powershell
 wsl 
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+python3 -m venv .venv
+source .venv/bin/activate
 ```
 
 No Linux, macOS ou WSL:

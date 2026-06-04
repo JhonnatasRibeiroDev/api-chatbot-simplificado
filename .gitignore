@@ -3,4 +3,4 @@ venv/
 __pycache__/
 *.pyc
 .env
-fluxo_project.txt
+fluxoprojeto.md
