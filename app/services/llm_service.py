@@ -1,47 +1,65 @@
-from typing import Any
+import logging
+from time import perf_counter
 
 from app.core.config import get_llm_config
+from app.services.llm_providers import create_llm_provider
 
+
+logger = logging.getLogger(__name__)
 
 FRIENDLY_LLM_ERROR_MESSAGE = (
-    "Não consegui gerar uma resposta agora. Tente novamente em instantes."
+    "Nao consegui gerar uma resposta agora. Tente novamente em instantes."
 )
 
 
 def generate_answer(message: str, history: list[dict[str, str]]) -> str:
+    started_at = perf_counter()
     config = get_llm_config()
 
-    if not config.api_key:
-        return FRIENDLY_LLM_ERROR_MESSAGE
-
-    if config.provider.lower() != "gemini":
-        return FRIENDLY_LLM_ERROR_MESSAGE
-
     try:
-        client = _create_gemini_client(config.api_key)
+        provider_started_at = perf_counter()
+        provider = create_llm_provider(config)
+        provider_elapsed = perf_counter() - provider_started_at
+
+        prompt_started_at = perf_counter()
         prompt = _build_prompt(message=message, history=history)
-        response = client.models.generate_content(
-            model=config.model,
-            contents=prompt,
+        prompt_elapsed = perf_counter() - prompt_started_at
+
+        generate_started_at = perf_counter()
+        answer = provider.generate(prompt)
+        generate_elapsed = perf_counter() - generate_started_at
+        total_elapsed = perf_counter() - started_at
+
+        logger.info(
+            "LLM gerou resposta. provider=%s model=%s provider_s=%.3f "
+            "prompt_s=%.3f generate_s=%.3f total_s=%.3f prompt_chars=%s "
+            "answer_chars=%s",
+            config.provider,
+            config.model,
+            provider_elapsed,
+            prompt_elapsed,
+            generate_elapsed,
+            total_elapsed,
+            len(prompt),
+            len(answer),
         )
 
-        answer = getattr(response, "text", "")
-        if not answer or not answer.strip():
-            return FRIENDLY_LLM_ERROR_MESSAGE
-
-        return answer.strip()
-    except Exception:
+        return answer
+    except Exception as error:
+        total_elapsed = perf_counter() - started_at
+        logger.exception(
+            "Falha ao gerar resposta com LLM. provider=%s model=%s "
+            "total_s=%.3f erro=%s",
+            config.provider,
+            config.model,
+            total_elapsed,
+            error,
+        )
         return FRIENDLY_LLM_ERROR_MESSAGE
 
 
 def generate_chatbot_response(message: str) -> str:
     return generate_answer(message=message, history=[])
-
-
-def _create_gemini_client(api_key: str) -> Any:
-    from google import genai
-
-    return genai.Client(api_key=api_key)
 
 
 def _build_prompt(message: str, history: list[dict[str, str]]) -> str:
@@ -72,4 +90,3 @@ def _format_history(history: list[dict[str, str]]) -> str:
         return "Sem historico anterior."
 
     return "\n".join(formatted_messages)
-
