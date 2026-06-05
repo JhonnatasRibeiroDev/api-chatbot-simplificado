@@ -54,6 +54,9 @@ As dependencias do projeto estao listadas em `requirements.txt`.
 - `app/services/llm_service.py`: monta o prompt com historico e mensagem atual, chama o provider configurado e registra metricas de tempo.
 - `app/services/llm_providers/`: contem adaptadores para Gemini, OpenAI compativel e Ollama.
 - `app/core/config.py`: le as configuracoes de LLM a partir do `.env`.
+- `Dockerfile`: define a imagem Docker do backend, instala as dependencias e inicia a API com Uvicorn.
+- `docker-compose.yml`: sobe o backend em container e publica a porta `8000`.
+- `.dockerignore`: remove arquivos locais, cache, ambiente virtual e segredos do contexto de build.
 
 ## Como executar localmente
 
@@ -84,13 +87,93 @@ pip install -r requirements.txt  #dependecias dos projeto
 
 Crie um arquivo `.env` local com base no `.env.example`:
 
+No Linux, macOS ou WSL:
+
+```bash
+cp .env.example .env
+```
+
+No Windows PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Depois edite o arquivo `.env` com as credenciais reais:
+
 ```env
 LLM_PROVIDER=gemini
 LLM_MODEL=gemini-3.5-flash
 LLM_API_KEY=sua_chave_real
+LLM_BASE_URL=
 ```
 
 O arquivo `.env` contem segredo real e nao deve ser enviado para o Git.
+
+### 4. Iniciar a API com Uvicorn
+
+```bash
+uvicorn app.main:app --reload
+```
+
+Por padrao, a API ficara disponivel em:
+
+```text
+http://127.0.0.1:8000
+```
+
+### 5. Testar o endpoint de saude
+
+```bash
+curl http://127.0.0.1:8000/health
+```
+
+Resposta esperada:
+
+```json
+{"status":"ok","message":"Api funcionando corretamente"}
+```
+
+## Como executar com Docker
+
+Antes de iniciar, mantenha o Docker Desktop aberto e crie o arquivo `.env` com base no `.env.example`. Nao e necessario criar ambiente virtual nem instalar dependencias localmente quando a execucao for feita com Docker.
+
+### 1. Construir a imagem
+
+```bash
+docker compose build
+```
+
+### 2. Iniciar o backend
+
+```bash
+docker compose up -d
+```
+
+A API ficara disponivel em:
+
+```text
+http://localhost:8000
+```
+
+### 3. Testar se a aplicacao subiu
+
+```bash
+curl http://localhost:8000/health
+```
+
+Resposta esperada:
+
+```json
+{"status":"ok","message":"Api funcionando corretamente"}
+```
+
+### 4. Verificar ou parar o container
+
+```bash
+docker compose ps
+docker compose down
+```
 
 ## Como mudar o modelo LLM
 
@@ -150,18 +233,6 @@ O backend usa uma camada de providers para comunicacao com modelos de linguagem.
   > genérica do sistema para a API específica daquele modelo. Com isso, a estrutura principal do backend permanece igual, e a troca de modelo
   > acontece apenas pela configuração.
 
-### 4. Iniciar a API
-
-```bash
-uvicorn app.main:app --reload
-```
-
-Por padrao, a API ficara disponivel em:
-
-```text
-http://127.0.0.1:8000
-```
-
 ## Documentacao interativa
 
 Com a API em execucao, acesse:
@@ -175,8 +246,19 @@ Com a API em execucao, acesse:
 
 Verifica se a API esta respondendo.
 
+- Metodo: `GET`
+- Rota: `/health`
+- Objetivo: confirmar que o backend esta online.
+- Corpo da requisicao: nao possui.
+
 ```http
 GET /health
+```
+
+Exemplo com `curl`:
+
+```bash
+curl http://127.0.0.1:8000/health
 ```
 
 Resposta esperada:
@@ -191,6 +273,11 @@ Resposta esperada:
 ### Criar sessao
 
 Cria uma nova sessao de conversa e retorna um identificador unico.
+
+- Metodo: `POST`
+- Rota: `/api/sessions`
+- Objetivo: criar uma sessao para iniciar uma conversa.
+- Corpo da requisicao: nao possui.
 
 ```http
 POST /api/sessions
@@ -214,6 +301,11 @@ curl -X POST http://127.0.0.1:8000/api/sessions
 
 Envia uma mensagem para uma sessao existente. O backend salva a mensagem do usuario, envia a mensagem e o historico da sessao ao LLM configurado e salva a resposta do assistente.
 
+- Metodo: `POST`
+- Rota: `/api/chat`
+- Objetivo: enviar uma mensagem do usuario e receber a resposta do chatbot.
+- Corpo da requisicao: JSON com `session_id` e `message`.
+
 ```http
 POST /api/chat
 ```
@@ -225,6 +317,14 @@ Payload:
   "session_id": "uuid-gerado",
   "message": "Ola, chatbot"
 }
+```
+
+Exemplo com `curl`:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{"session_id":"uuid-gerado","message":"Ola, chatbot"}'
 ```
 
 Resposta esperada:
@@ -240,6 +340,52 @@ Se a API do LLM falhar ou a chave nao estiver configurada, a resposta sera:
 
 ```text
 Não consegui gerar uma resposta agora. Tente novamente em instantes.
+```
+
+### Consultar historico da sessao
+
+Retorna todas as mensagens registradas em uma sessao.
+
+- Metodo: `GET`
+- Rota: `/api/sessions/{session_id}/history`
+- Objetivo: consultar o historico de mensagens da sessao.
+- Corpo da requisicao: nao possui.
+- Parametro de rota: `session_id`, identificador retornado em `POST /api/sessions`.
+
+```http
+GET /api/sessions/{session_id}/history
+```
+
+Exemplo com `curl`:
+
+```bash
+curl http://127.0.0.1:8000/api/sessions/uuid-gerado/history
+```
+
+Resposta esperada:
+
+```json
+{
+  "session_id": "uuid-gerado",
+  "history": [
+    {
+      "role": "user",
+      "content": "Ola, chatbot"
+    },
+    {
+      "role": "assistant",
+      "content": "Ola! Como posso ajudar voce hoje?"
+    }
+  ]
+}
+```
+
+Se a sessao nao existir, a API retorna:
+
+```json
+{
+  "detail": "Sessao nao encontrada"
+}
 ```
 
 ## Como as sessoes funcionam
@@ -276,24 +422,31 @@ Implementado:
 - Testes unitarios para servico LLM, rota de chat e concorrencia.
 - Testes reais de tempo com requisicoes sequenciais e simultaneas.
 - Tratamento amigavel para falhas da API do LLM.
+- Dockerfile e Docker Compose funcionais para execucao local em container.
 
 Ainda nao implementado:
 
 - Pipeline RAG.
 - Persistencia em banco de dados.
-- Dockerfile e Docker Compose funcionais.
 
 ## Observacoes importantes
 
 - O CORS esta configurado com `allow_origins=["*"]`, adequado para desenvolvimento, mas deve ser restringido em producao.
 - O armazenamento atual das sessoes nao e persistente.
-- `Dockerfile` e `docker-compose.yml` ainda nao estao funcionais.
 - `.env.example` documenta as variaveis esperadas, mas a chave real deve ficar apenas no `.env` local.
 - A pasta `.venv` e arquivos de cache Python devem permanecer fora do versionamento, conforme `.gitignore`.
 
 ## Comando rapido
 
+Sem Docker:
+
 ```bash
 pip install -r requirements.txt
 uvicorn app.main:app --reload
+```
+
+Com Docker:
+
+```bash
+docker compose up -d
 ```
