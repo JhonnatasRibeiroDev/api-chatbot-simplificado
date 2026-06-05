@@ -1,10 +1,10 @@
 # API Chatbot Simplificado
 
-Backend academico em FastAPI para um chatbot multiusuario. No estado atual, o projeto ja possui a base da API, configuracao de CORS, endpoint de saude e criacao de sessoes em memoria. As partes de chat, LLM e RAG existem como arquivos de preparacao, mas ainda nao possuem implementacao.
+Backend academico em FastAPI para um chatbot multiusuario. No estado atual, o projeto possui a base da API, configuracao de CORS, endpoint de saude, criacao de sessoes em memoria, rota de chat, historico por sessao e integracao com LLM externo configuravel por variaveis de ambiente.
 
 ## Objetivo
 
-O projeto tem como objetivo servir como uma API backend para um chatbot, separando responsabilidades em rotas, schemas e services. A primeira funcionalidade implementada e a criacao de sessoes, permitindo identificar conversas diferentes por meio de um `session_id`.
+O projeto tem como objetivo servir como uma API backend para um chatbot, separando responsabilidades em rotas, schemas, services e providers de LLM. Cada conversa usa um `session_id`, permitindo identificar conversas diferentes e manter o historico isolado por sessao.
 
 ## Tecnologias
 
@@ -14,6 +14,7 @@ O projeto tem como objetivo servir como uma API backend para um chatbot, separan
 - Pydantic
 - python-dotenv
 - Google GenAI SDK
+- httpx
 
 As dependencias do projeto estao listadas em `requirements.txt`.
 
@@ -48,10 +49,11 @@ As dependencias do projeto estao listadas em `requirements.txt`.
 - `app/routes/sessions.py`: define a rota `POST /api/sessions` para criar uma nova sessao.
 - `app/services/session_service.py`: gera o `session_id` com `uuid4` e armazena a sessao em memoria.
 - `app/schemas/session_schema.py`: define o modelo de resposta da criacao de sessao.
-- `app/routes/chat.py`: arquivo reservado para futuras rotas de chat.
-- `app/schemas/chat_schema.py`: arquivo reservado para futuros schemas de chat.
-- `app/services/llm_service.py`: arquivo reservado para futura integracao com LLM.
-- `app/core/config.py`: arquivo reservado para futuras configuracoes da aplicacao.
+- `app/routes/chat.py`: define a rota `POST /api/chat`, valida a sessao, salva a mensagem do usuario, chama o LLM e salva a resposta.
+- `app/schemas/chat_schema.py`: define os modelos de entrada e saida da rota de chat.
+- `app/services/llm_service.py`: monta o prompt com historico e mensagem atual, chama o provider configurado e registra metricas de tempo.
+- `app/services/llm_providers/`: contem adaptadores para Gemini, OpenAI compativel e Ollama.
+- `app/core/config.py`: le as configuracoes de LLM a partir do `.env`.
 
 ## Como executar localmente
 
@@ -84,7 +86,7 @@ Crie um arquivo `.env` local com base no `.env.example`:
 
 ```env
 LLM_PROVIDER=gemini
-LLM_MODEL=gemini-2.5-flash
+LLM_MODEL=gemini-3.5-flash
 LLM_API_KEY=sua_chave_real
 ```
 
@@ -92,33 +94,46 @@ O arquivo `.env` contem segredo real e nao deve ser enviado para o Git.
 
 ## Como mudar o modelo LLM
 
-O modelo padrao do projeto e Gemini:
+### Atualizacao do estado atual
+
+O modelo ativo e definido no arquivo `.env`. Para trocar apenas o modelo dentro do mesmo provider, altere `LLM_MODEL` e reinicie a API.
+
+Exemplo com Gemini:
 
 ```env
 LLM_PROVIDER=gemini
-LLM_MODEL=gemini-2.5-flash
+LLM_MODEL=gemini-3.5-flash
 LLM_API_KEY=sua_chave_real
 ```
 
-Para trocar apenas o modelo dentro do Gemini, altere `LLM_MODEL` e reinicie a API:
+Exemplo trocando apenas o modelo Gemini:
 
 ```env
 LLM_PROVIDER=gemini
 LLM_MODEL=gemini-2.5-pro
 LLM_API_KEY=sua_chave_real
 ```
+Outros modelos para testar:
+gemma-4-31b-it
+gemma-4-26b-a4b-it
 
-No estado atual, o backend tem integracao real apenas com Gemini. Trocar `LLM_PROVIDER` para `openai`, `claude`, `ollama` ou outro valor ainda exige implementar um provider/adaptador no servico de LLM.
 
-Exemplo futuro para OpenAI:
+Reiniciar a API significa parar o servidor com `Ctrl + C` e iniciar de novo:
 
-```env
-LLM_PROVIDER=openai
-LLM_MODEL=gpt-4.1-mini
-LLM_API_KEY=sua_chave_openai
+```bash
+uvicorn app.main:app --reload
 ```
 
-Exemplo futuro para modelo local via Ollama:
+Isso e necessario porque o `.env` e carregado quando a aplicacao sobe.
+
+Providers suportados no codigo atual:
+
+- `gemini`: usa Google GenAI SDK e exige `LLM_API_KEY`.
+- `openai`: usa endpoint compativel com OpenAI em `https://api.openai.com/v1` e exige `LLM_API_KEY`.
+- `openai_compatible`: usa `LLM_BASE_URL`, util para servidores compativeis com OpenAI.
+- `ollama`: usa `LLM_BASE_URL` ou `http://localhost:11434`.
+
+Exemplo com Ollama local:
 
 ```env
 LLM_PROVIDER=ollama
@@ -127,14 +142,13 @@ LLM_API_KEY=
 LLM_BASE_URL=http://localhost:11434
 ```
 
-Exemplo futuro para LM Studio ou outro servidor compativel com OpenAI:
+O backend usa uma camada de providers para comunicacao com modelos de linguagem. A rota de chat chama apenas o servico de LLM, e o provider ativo traduz essa chamada para Gemini, OpenAI compativel ou Ollama.
 
-```env
-LLM_PROVIDER=openai_compatible
-LLM_MODEL=nome-do-modelo-local
-LLM_API_KEY=local
-LLM_BASE_URL=http://localhost:1234/v1
-```
+  > O backend usa uma camada de abstração para comunicação com modelos de linguagem. A rota de chat chama apenas o serviço de LLM, sem
+  > depender diretamente de Gemini, OpenAI, Ollama ou qualquer outro fornecedor. A escolha do modelo ativo é feita por variáveis de ambiente,
+  > como LLM_PROVIDER, LLM_MODEL, LLM_API_KEY e LLM_BASE_URL. Cada fornecedor possui um adaptador próprio, responsável por traduzir a chamada
+  > genérica do sistema para a API específica daquele modelo. Com isso, a estrutura principal do backend permanece igual, e a troca de modelo
+  > acontece apenas pela configuração.
 
 ### 4. Iniciar a API
 
@@ -257,6 +271,10 @@ Implementado:
 - Endpoint `POST /api/chat`.
 - Integracao do chat com servico LLM.
 - Configuracoes de LLM via variaveis de ambiente.
+- Providers para Gemini, OpenAI, OpenAI compativel e Ollama.
+- Logs de performance da chamada ao LLM.
+- Testes unitarios para servico LLM, rota de chat e concorrencia.
+- Testes reais de tempo com requisicoes sequenciais e simultaneas.
 - Tratamento amigavel para falhas da API do LLM.
 
 Ainda nao implementado:
@@ -269,7 +287,8 @@ Ainda nao implementado:
 
 - O CORS esta configurado com `allow_origins=["*"]`, adequado para desenvolvimento, mas deve ser restringido em producao.
 - O armazenamento atual das sessoes nao e persistente.
-- `Dockerfile`, `docker-compose.yml` e `.env.example` existem, mas ainda estao vazios.
+- `Dockerfile` e `docker-compose.yml` ainda nao estao funcionais.
+- `.env.example` documenta as variaveis esperadas, mas a chave real deve ficar apenas no `.env` local.
 - A pasta `.venv` e arquivos de cache Python devem permanecer fora do versionamento, conforme `.gitignore`.
 
 ## Comando rapido

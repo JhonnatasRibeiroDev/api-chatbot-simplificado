@@ -1,16 +1,36 @@
-# Escolha e configuracao do modelo LLM
+# Escolha, troca e testes do modelo LLM
 
-## Modelo escolhido
+## Estado atual
 
-Provider: Gemini
+O projeto usa uma camada de providers para chamar modelos de linguagem sem acoplar a rota de chat a um fornecedor especifico.
 
-Modelo: gemini-2.5-flash
+O fluxo atual e:
 
-## Motivo tecnico da escolha
+```text
+POST /api/chat
+  -> app/routes/chat.py
+  -> app/services/session_service.py
+  -> app/services/llm_service.py
+  -> app/services/llm_providers/factory.py
+  -> provider configurado no .env
+```
 
-O modelo gemini-2.5-flash foi escolhido por ser adequado para uma primeira integracao de chatbot com API externa. Ele oferece boa velocidade de resposta, custo mais controlado em comparacao com modelos maiores e qualidade suficiente para fluxos conversacionais comuns.
+O `llm_service.py` monta o prompt com:
 
-Essa escolha tambem facilita a evolucao do projeto, porque o provider e o modelo ficam definidos por variaveis de ambiente, sem acoplar o codigo da aplicacao a um unico fornecedor.
+- instrucao fixa do assistente;
+- historico da sessao;
+- mensagem atual do usuario.
+
+Depois ele chama o provider ativo e registra metricas de tempo em log, incluindo tempo de criacao do provider, montagem do prompt, geracao da resposta e tempo total.
+
+## Providers suportados
+
+O codigo atual suporta:
+
+- `gemini`: usa o SDK `google-genai`.
+- `openai`: usa endpoint compativel com OpenAI em `https://api.openai.com/v1`.
+- `openai_compatible`: usa um endpoint informado em `LLM_BASE_URL`.
+- `ollama`: usa Ollama local, por padrao em `http://localhost:11434`.
 
 ## Variaveis de ambiente
 
@@ -18,55 +38,70 @@ Crie um arquivo `.env` local com base no `.env.example`:
 
 ```env
 LLM_PROVIDER=gemini
-LLM_MODEL=gemini-2.5-flash
+LLM_MODEL=gemini-3.5-flash
 LLM_API_KEY=sua_chave_real
+LLM_BASE_URL=
 ```
 
 O arquivo `.env` nao deve ser enviado para o Git, porque contem segredo real.
 
-## Como trocar o modelo futuramente
+## Como trocar apenas o modelo
 
-O provider padrao do projeto e Gemini com o modelo `gemini-2.5-flash`.
-
-Hoje o codigo possui integracao real apenas com Gemini. Por isso, trocar entre modelos Gemini exige mudar somente variaveis no `.env`. Trocar para OpenAI, Claude, Ollama ou outro provider exige adicionar um provider/adaptador no codigo antes.
-
-### Trocar apenas o modelo Gemini
-
-Altere somente `LLM_MODEL` no `.env`:
-
-```env
-LLM_PROVIDER=gemini
-LLM_MODEL=outro-modelo-gemini
-LLM_API_KEY=sua_chave_real
-```
+Se o provider continuar o mesmo, normalmente basta trocar `LLM_MODEL`.
 
 Exemplo:
 
 ```env
 LLM_PROVIDER=gemini
-LLM_MODEL=gemini-2.5-pro
+LLM_MODEL=outro-modelo-gemini
 LLM_API_KEY=sua_chave_real
+LLM_BASE_URL=
 ```
 
-Depois reinicie a API para carregar a nova configuracao.
+Depois reinicie a API.
 
-### Trocar de provider externo
+Reiniciar a API significa parar o servidor atual com `Ctrl + C` e iniciar novamente:
 
-Para trocar para outro provider, como OpenAI ou Claude, a configuracao futura seria parecida com:
+```bash
+uvicorn app.main:app --reload
+```
+
+Isso e necessario porque as variaveis do `.env` sao carregadas quando a aplicacao sobe.
+
+## Como trocar de provider
+
+Para trocar de fornecedor, altere `LLM_PROVIDER` e ajuste as demais variaveis.
+
+### Gemini
+
+```env
+LLM_PROVIDER=gemini
+LLM_MODEL=gemini-3.5-flash
+LLM_API_KEY=sua_chave_gemini
+LLM_BASE_URL=
+```
+
+### OpenAI
 
 ```env
 LLM_PROVIDER=openai
 LLM_MODEL=gpt-4.1-mini
 LLM_API_KEY=sua_chave_openai
+LLM_BASE_URL=
 ```
 
-Mas, no estado atual do projeto, essa troca ainda retornara a mensagem amigavel de falha porque o `llm_service.py` suporta apenas Gemini.
+### Provider compativel com OpenAI
 
-### Testar modelos locais no futuro
+Use quando o servidor expuser uma API no formato `/chat/completions`.
 
-Modelos locais podem ser integrados futuramente com um provider proprio, por exemplo `ollama` ou `openai_compatible`.
+```env
+LLM_PROVIDER=openai_compatible
+LLM_MODEL=nome-do-modelo
+LLM_API_KEY=sua_chave_ou_local
+LLM_BASE_URL=http://localhost:1234/v1
+```
 
-Exemplo futuro com Ollama:
+### Ollama
 
 ```env
 LLM_PROVIDER=ollama
@@ -75,41 +110,32 @@ LLM_API_KEY=
 LLM_BASE_URL=http://localhost:11434
 ```
 
-Exemplo futuro com LM Studio ou outro servidor compativel com OpenAI:
+## Testes de desempenho feitos
 
-```env
-LLM_PROVIDER=openai_compatible
-LLM_MODEL=nome-do-modelo-local
-LLM_API_KEY=local
-LLM_BASE_URL=http://localhost:1234/v1
-```
+Durante a avaliacao do projeto, foram feitos testes reais de tempo com chamadas sequenciais e simultaneas ao modelo configurado no `.env`.
 
-Para esse tipo de troca ficar desacoplada, o proximo passo arquitetural seria separar `llm_service.py` em providers/adapters, mantendo `generate_answer` como ponto unico de entrada.
+Resultados observados depois da estabilizacao da configuracao:
 
-A aplicacao le essas configuracoes em `app/core/config.py`.
+- 5 requisicoes sequenciais curtas: media aproximada de 7.747s por requisicao.
+- 10 requisicoes sequenciais com perguntas tecnicas: media aproximada de 3.714s por requisicao.
+- 5 requisicoes simultaneas: tempo total aproximado de 4.927s para o lote, com media individual de 4.259s.
 
-## Integracao com o servico de LLM
+As respostas simultaneas avaliadas bateram em qualidade para perguntas sobre API, FastAPI, frontend/backend, `git fetch` vs `git pull` e fluxo HTTP.
 
-O servico `app/services/llm_service.py` centraliza a comunicacao com o modelo de linguagem por meio da funcao `generate_answer`.
+## Observacoes sobre performance
 
-Essa funcao recebe:
+- Prompts menores podem ajudar, mas o principal fator de latencia costuma ser o modelo/provider escolhido.
+- Modelos maiores tendem a responder melhor em tarefas complexas, mas podem ser mais lentos.
+- Modelos flash ou menores tendem a ser melhores para chat simples e respostas curtas.
+- Requisicoes simultaneas podem reduzir o tempo total percebido, desde que o provider e o limite de requisicoes permitam.
+- Se o provider tiver limite de requisicoes por minuto, evite disparar muitos testes simultaneos sem controle.
 
-- a mensagem atual do usuario;
-- o historico da sessao;
-- as configuracoes de provider, modelo e chave carregadas por variaveis de ambiente.
+## Falhas tratadas
 
-O endpoint `POST /api/chat` salva a mensagem do usuario, busca o historico atualizado da sessao e envia esse contexto para `generate_answer`. A resposta gerada pelo LLM e salva no historico como mensagem do assistente.
-
-## Tratamento de falhas
-
-Se a chave `LLM_API_KEY` nao estiver configurada, se o provider nao for suportado ou se a API do LLM falhar, a aplicacao retorna uma mensagem amigavel:
+Se a chave estiver ausente, o provider nao for suportado ou a API externa falhar, o endpoint retorna uma mensagem amigavel:
 
 ```text
-Não consegui gerar uma resposta agora. Tente novamente em instantes.
+Nao consegui gerar uma resposta agora. Tente novamente em instantes.
 ```
 
-Esse comportamento evita expor detalhes tecnicos da falha para o usuario final e preserva o formato de resposta do endpoint.
-
-## SDK utilizado
-
-Para Gemini, o projeto usa o pacote `google-genai`, SDK oficial recomendado pela documentacao atual da API Gemini.
+Isso evita expor detalhes tecnicos para o usuario final e mantem o formato de resposta da rota.
