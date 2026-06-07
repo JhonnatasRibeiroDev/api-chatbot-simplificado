@@ -5,6 +5,10 @@ class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1)
 
 
+class ChatMessageRequest(BaseModel):
+    message: str = Field(..., min_length=1)
+
+
 class ChatResponse(BaseModel):
     session_id: str
     response: str

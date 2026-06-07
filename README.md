@@ -1,6 +1,6 @@
 # API Chatbot Simplificado
 
-Backend academico em FastAPI para um chatbot multiusuario. No estado atual, o projeto possui a base da API, configuracao de CORS, endpoint de saude, criacao de sessoes em memoria, rota de chat, historico por sessao e integracao com LLM externo configuravel por variaveis de ambiente.
+Backend academico em FastAPI para um chatbot multiusuario. No estado atual, o projeto possui a base da API, configuracao de CORS, endpoint de saude, criacao de sessoes, persistencia em SQLite, rota de chat, historico por sessao e integracao com LLM externo configuravel por variaveis de ambiente.
 
 ## Objetivo
 
@@ -13,6 +13,7 @@ O projeto tem como objetivo servir como uma API backend para um chatbot, separan
 - Uvicorn
 - Pydantic
 - python-dotenv
+- SQLite
 - Google GenAI SDK
 - httpx
 
@@ -46,9 +47,13 @@ As dependencias do projeto estao listadas em `requirements.txt`.
 ## Responsabilidades dos arquivos
 
 - `app/main.py`: cria a aplicacao FastAPI, configura CORS, registra as rotas de sessoes e expoe o endpoint `/health`.
-- `app/routes/sessions.py`: define a rota `POST /api/sessions` para criar uma nova sessao.
-- `app/services/session_service.py`: gera o `session_id` com `uuid4` e armazena a sessao em memoria.
-- `app/schemas/session_schema.py`: define o modelo de resposta da criacao de sessao.
+- `app/database.py`: configura a conexao SQLite e cria as tabelas `sessions` e `messages`.
+- `app/routes/sessions.py`: define as rotas de criacao de sessao, historico e listagem de conversas por cliente.
+- `app/services/session_service.py`: gera o `session_id` com `uuid4`, persiste a sessao no SQLite e recupera historico por sessao.
+- `app/repositories/sessions_repository.py`: executa operacoes SQL da tabela `sessions`.
+- `app/repositories/messages_repository.py`: executa operacoes SQL da tabela `messages`.
+- `app/services/message_service.py`: centraliza a gravacao e busca de mensagens no banco.
+- `app/schemas/session_schema.py`: define os modelos de resposta de sessao, historico e listagem de sessoes por cliente.
 - `app/routes/chat.py`: define a rota `POST /api/chat`, valida a sessao, salva a mensagem do usuario, chama o LLM e salva a resposta.
 - `app/schemas/chat_schema.py`: define os modelos de entrada e saida da rota de chat.
 - `app/services/llm_service.py`: monta o prompt com historico e mensagem atual, chama o provider configurado e registra metricas de tempo.
@@ -88,6 +93,7 @@ Crie um arquivo `.env` local com base no `.env.example`:
 LLM_PROVIDER=gemini
 LLM_MODEL=gemini-3.5-flash
 LLM_API_KEY=sua_chave_real
+DATABASE_URL=sqlite:///./data/app.sqlite3
 ```
 
 O arquivo `.env` contem segredo real e nao deve ser enviado para o Git.
@@ -171,92 +177,89 @@ Com a API em execucao, acesse:
 
 ## Endpoints disponiveis
 
-### Health check
+| Metodo | Endpoint | Funcao |
+| --- | --- | --- |
+| `GET` | `/health` | Verifica se a API esta funcionando. |
+| `POST` | `/api/sessions` | Cria uma nova sessao/conversa, salva no SQLite e grava/reutiliza o cookie `client_id`. |
+| `GET` | `/api/sessions/me` | Lista as sessoes/conversas do usuario identificado pelo cookie `client_id`. |
+| `GET` | `/api/sessions/clients/{client_id}` | Lista as sessoes/conversas de um cliente especifico. |
+| `GET` | `/api/sessions/{session_id}/history` | Busca o historico de mensagens de uma sessao. |
+| `GET` | `/api/sessions/{session_id}/chat` | Busca o chat completo de uma sessao. |
+| `POST` | `/api/sessions/{session_id}/messages` | Envia mensagem para uma sessao e retorna a resposta da IA. |
+| `POST` | `/api/chat` | Endpoint legado para enviar mensagem usando `session_id` no corpo da requisicao. |
 
-Verifica se a API esta respondendo.
+### Exemplos rapidos
 
-```http
-GET /health
-```
-
-Resposta esperada:
-
-```json
-{
-  "status": "ok",
-  "message": "Api funcionando corretamente"
-}
-```
-
-### Criar sessao
-
-Cria uma nova sessao de conversa e retorna um identificador unico.
+Criar sessao:
 
 ```http
 POST /api/sessions
 ```
 
-Resposta esperada:
+Body opcional:
 
 ```json
 {
-  "session_id": "uuid-gerado"
+  "client_id": "user-123"
 }
 ```
 
-Exemplo com `curl`:
-
-```bash
-curl -X POST http://127.0.0.1:8000/api/sessions
-```
-
-### Enviar mensagem ao chat
-
-Envia uma mensagem para uma sessao existente. O backend salva a mensagem do usuario, envia a mensagem e o historico da sessao ao LLM configurado e salva a resposta do assistente.
+Enviar mensagem pelo endpoint novo:
 
 ```http
-POST /api/chat
+POST /api/sessions/{session_id}/messages
 ```
-
-Payload:
 
 ```json
 {
-  "session_id": "uuid-gerado",
   "message": "Ola, chatbot"
 }
 ```
 
-Resposta esperada:
+Buscar conversas pelo cookie:
 
-```json
-{
-  "session_id": "uuid-gerado",
-  "response": "resposta gerada pelo modelo"
-}
+```http
+GET /api/sessions/me
 ```
 
-Se a API do LLM falhar ou a chave nao estiver configurada, a resposta sera:
+Buscar conversas por `client_id`:
 
-```text
-Não consegui gerar uma resposta agora. Tente novamente em instantes.
+```http
+GET /api/sessions/clients/user-123
+```
+
+Buscar mensagens/chat da sessao:
+
+```http
+GET /api/sessions/{session_id}/chat
 ```
 
 ## Como as sessoes funcionam
 
-As sessoes sao armazenadas em memoria no dicionario `sessions`, definido em `app/services/session_service.py`.
+As sessoes sao persistidas no SQLite na tabela `sessions`. O dicionario `sessions`, definido em `app/services/session_service.py`, ainda e usado como apoio em memoria durante a execucao da API.
 
 Exemplo conceitual:
 
-```python
-sessions = {
-    "session-id": {
-        "messages": []
-    }
-}
+```text
+sessions
+id | uuid_client | uuid_session | created_at
+1  | user-123    | uuid-gerado  | 2026-06-07 13:03:36
 ```
 
-Cada nova sessao recebe um UUID gerado por `uuid4`. Como o armazenamento e em memoria, os dados sao perdidos quando o servidor e reiniciado.
+Cada nova sessao recebe um UUID gerado por `uuid4`. Se o front nao enviar `client_id` e nao existir cookie `client_id`, o backend tambem gera um UUID para o cliente. A sessao e salva antes de o backend retornar `client_id` e `session_id` para o front.
+
+O backend tambem grava o `client_id` em cookie HTTP-only. Com isso, o endpoint `GET /api/sessions/me` consegue recuperar as conversas antigas do mesmo visitante sem exigir que o front envie o `client_id` manualmente.
+
+As mensagens do chat sao persistidas na tabela `messages`:
+
+```text
+messages
+id | uuid_client | uuid_session | role      | mensagem
+1  | user-123    | uuid-gerado  | user      | Ola
+2  | user-123    | uuid-gerado  | assistant | Ola, tudo bem?
+```
+
+O historico da sessao e recuperado buscando as mensagens pelo `uuid_session`.
 
 ## Estado atual do projeto
 
@@ -266,8 +269,16 @@ Implementado:
 - Middleware de CORS liberando todas as origens.
 - Endpoint `GET /health`.
 - Endpoint `POST /api/sessions`.
+- Endpoint `GET /api/sessions/me`.
+- Endpoint `GET /api/sessions/clients/{client_id}`.
+- Endpoint `GET /api/sessions/{session_id}/history`.
+- Endpoint `GET /api/sessions/{session_id}/chat`.
+- Endpoint `POST /api/sessions/{session_id}/messages`.
 - Schema de resposta para sessao.
-- Service de criacao de sessao em memoria.
+- Persistencia de sessoes no SQLite.
+- Persistencia de mensagens no SQLite.
+- Recuperacao de historico pelo SQLite.
+- Listagem de conversas por cliente.
 - Endpoint `POST /api/chat`.
 - Integracao do chat com servico LLM.
 - Configuracoes de LLM via variaveis de ambiente.
@@ -280,13 +291,13 @@ Implementado:
 Ainda nao implementado:
 
 - Pipeline RAG.
-- Persistencia em banco de dados.
 - Dockerfile e Docker Compose funcionais.
 
 ## Observacoes importantes
 
 - O CORS esta configurado com `allow_origins=["*"]`, adequado para desenvolvimento, mas deve ser restringido em producao.
-- O armazenamento atual das sessoes nao e persistente.
+- O SQLite usa o arquivo definido em `DATABASE_URL`, por padrao `data/app.sqlite3`.
+- O `uuid_client` e recebido pelo `POST /api/sessions`, reaproveitado do cookie `client_id` ou gerado automaticamente quando nao existir.
 - `Dockerfile` e `docker-compose.yml` ainda nao estao funcionais.
 - `.env.example` documenta as variaveis esperadas, mas a chave real deve ficar apenas no `.env` local.
 - A pasta `.venv` e arquivos de cache Python devem permanecer fora do versionamento, conforme `.gitignore`.
