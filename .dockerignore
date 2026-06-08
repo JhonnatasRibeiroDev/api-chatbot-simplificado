@@ -1,0 +1,31 @@
+# Git
+.git
+.gitignore
+
+# Variáveis de ambiente (nunca vai para imagem)
+.env
+.env.*
+!.env.example
+
+# Banco de dados local
+data/
+
+# Testes
+tests/
+
+# Documentação
+docs/
+README.md
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Docker
+docker-compose.yml
+Dockerfile
+.dockerignore
