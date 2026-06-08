@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware 
+from app.database import initialize_database
 from app.routes.sessions import router as sessions_router
 from app.routes.chat import router as chat_router
 
@@ -25,6 +26,11 @@ app.add_middleware(
 #Registros as rotas de sessão na aplicação principal
 app.include_router(sessions_router)
 app.include_router(chat_router)
+
+
+@app.on_event("startup")
+def startup_event():
+    initialize_database()
 
 #NA pratica isso significa se alguem acessar /health responda OK API FUNCIONANDO 
 #endpoint de teste

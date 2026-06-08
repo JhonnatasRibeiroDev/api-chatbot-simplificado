@@ -9,5 +9,8 @@ __pycache__/
 *.key
 *credentials*.json
 *service-account*.json
+*.db
+*.sqlite
+*.sqlite3
 fluxoprojeto.md
 fluxoprojeto2.md

@@ -1,13 +1,31 @@
+# Git
 .git
-.venv
-venv
-.pytest_cache
-__pycache__
-*.pyc
+.gitignore
+
+# Variáveis de ambiente (nunca vai para imagem)
 .env
 .env.*
 !.env.example
-*.pem
-*.key
-*credentials*.json
-*service-account*.json
+
+# Banco de dados local
+data/
+
+# Testes
+tests/
+
+# Documentação
+docs/
+README.md
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Docker
+docker-compose.yml
+Dockerfile
+.dockerignore
